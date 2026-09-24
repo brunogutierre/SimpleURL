@@ -53,13 +53,18 @@ Requirements: JDK 25.
 
 ```sh
 ./mvnw spring-boot:run   # starts the API on http://localhost:8080
-./mvnw verify            # runs the test suite
+./mvnw verify            # runs tests and the 80% coverage gate
 ```
+
+- Swagger UI: http://localhost:8080/swagger-ui.html
+- OpenAPI document: http://localhost:8080/v3/api-docs
+- Coverage report (after `verify`): `target/site/jacoco/index.html`
+- Configuration: set `SIMPLEURL_BASE_URL` to the public address used in short URLs (default `http://localhost:8080`).
 
 ## Roadmap
 
 - [x] Project bootstrap
-- [ ] CI, coverage gate and API documentation
+- [x] CI, coverage gate and API documentation
 - [ ] Link domain (entity, in-memory repository, code generator, service)
 - [ ] Links REST API and redirect endpoint
 - [ ] Link expiration
