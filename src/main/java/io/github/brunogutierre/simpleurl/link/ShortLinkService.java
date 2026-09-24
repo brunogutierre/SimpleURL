@@ -54,6 +54,19 @@ public class ShortLinkService {
 	}
 
 	/**
+	 * Finds the link a visitor should be redirected to.
+	 * @throws LinkNotFoundException if no link has the given code
+	 * @throws LinkExpiredException if the link has expired
+	 */
+	public ShortLink resolve(String code) {
+		var link = get(code);
+		if (link.isExpiredAt(clock.instant())) {
+			throw new LinkExpiredException(code);
+		}
+		return link;
+	}
+
+	/**
 	 * @throws LinkNotFoundException if no link has the given code
 	 */
 	public void delete(String code) {

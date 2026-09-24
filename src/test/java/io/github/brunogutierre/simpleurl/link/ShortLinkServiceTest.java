@@ -70,6 +70,25 @@ class ShortLinkServiceTest {
 	}
 
 	@Test
+	void resolvesActiveLinks() {
+		var service = serviceGenerating("unused1");
+		repository.saveIfCodeAbsent(ShortLink.create("forever", URL, NOW));
+		repository.saveIfCodeAbsent(ShortLink.create("later01", URL, NOW, NOW.plusSeconds(1)));
+
+		assertThat(service.resolve("forever").getCode()).isEqualTo("forever");
+		assertThat(service.resolve("later01").getCode()).isEqualTo("later01");
+	}
+
+	@Test
+	void refusesToResolveExpiredLink() {
+		var service = serviceGenerating("unused1");
+		repository.saveIfCodeAbsent(ShortLink.create("expired", URL, NOW.minusSeconds(60), NOW));
+
+		assertThatThrownBy(() -> service.resolve("expired")).isInstanceOf(LinkExpiredException.class);
+		assertThat(service.get("expired").getCode()).isEqualTo("expired");
+	}
+
+	@Test
 	void deletesLink() {
 		var service = serviceGenerating("abc1234");
 		service.create(URL, null);
