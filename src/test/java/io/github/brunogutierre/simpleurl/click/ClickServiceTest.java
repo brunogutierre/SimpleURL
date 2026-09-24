@@ -2,8 +2,10 @@ package io.github.brunogutierre.simpleurl.click;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 
+import io.github.brunogutierre.simpleurl.click.dto.DailyClicks;
 import io.github.brunogutierre.simpleurl.link.ShortLinkDeletedEvent;
 import org.junit.jupiter.api.Test;
 
@@ -39,6 +41,31 @@ class ClickServiceTest {
 		service.onLinkDeleted(new ShortLinkDeletedEvent(1, "link001"));
 
 		assertThat(repository.findByShortLinkId(1)).isEmpty();
+	}
+
+	@Test
+	void summarizesClicksPerUtcDay() {
+		var link = persistedLink(1, "link001");
+		for (var clickedAt : new String[] { "2026-01-02T23:59:59Z", "2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z" }) {
+			repository.save(Click.of(link, Instant.parse(clickedAt), null, null));
+		}
+
+		var stats = service.statsFor(link);
+
+		assertThat(stats.code()).isEqualTo("link001");
+		assertThat(stats.totalClicks()).isEqualTo(3);
+		assertThat(stats.lastClickAt()).isEqualTo("2026-01-02T23:59:59Z");
+		assertThat(stats.clicksPerDay()).containsExactly(new DailyClicks(LocalDate.parse("2026-01-01"), 1),
+				new DailyClicks(LocalDate.parse("2026-01-02"), 2));
+	}
+
+	@Test
+	void summarizesLinkWithoutClicks() {
+		var stats = service.statsFor(persistedLink(1, "link001"));
+
+		assertThat(stats.totalClicks()).isZero();
+		assertThat(stats.lastClickAt()).isNull();
+		assertThat(stats.clicksPerDay()).isEmpty();
 	}
 
 }

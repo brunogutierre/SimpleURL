@@ -11,7 +11,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Exercises the whole application: create, follow, read and delete a link.
+ * Exercises the whole application: create, follow, inspect and delete a link.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -21,7 +21,7 @@ class LinkLifecycleIntegrationTest {
 	MockMvcTester mvc;
 
 	@Test
-	void createRedirectAndDeleteLink() {
+	void createRedirectInspectAndDeleteLink() {
 		var created = mvc.post()
 			.uri("/api/links")
 			.contentType(MediaType.APPLICATION_JSON)
@@ -36,9 +36,14 @@ class LinkLifecycleIntegrationTest {
 			.bodyJson()
 			.extractingPath("$.shortUrl")
 			.isEqualTo("http://localhost:8080/" + code);
+		assertThat(mvc.get().uri("/api/links/{code}/stats", code)).hasStatusOk()
+			.bodyJson()
+			.extractingPath("$.totalClicks")
+			.isEqualTo(1);
 
 		assertThat(mvc.delete().uri("/api/links/{code}", code)).hasStatus(HttpStatus.NO_CONTENT);
 		assertThat(mvc.get().uri("/{code}", code)).hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.get().uri("/api/links/{code}/stats", code)).hasStatus(HttpStatus.NOT_FOUND);
 	}
 
 }
