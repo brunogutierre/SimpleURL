@@ -3,6 +3,7 @@ package io.github.brunogutierre.simpleurl.link;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
@@ -21,6 +22,8 @@ class ShortLinkServiceTest {
 	private static final String URL = "https://example.com/some/long/path";
 
 	private final ShortLinkRepository repository = new InMemoryShortLinkRepository();
+
+	private final List<Object> publishedEvents = new ArrayList<>();
 
 	@Test
 	void createsLinkWithGeneratedCodeAndCurrentTime() {
@@ -89,13 +92,14 @@ class ShortLinkServiceTest {
 	}
 
 	@Test
-	void deletesLink() {
+	void deletesLinkAndPublishesEvent() {
 		var service = serviceGenerating("abc1234");
-		service.create(URL, null);
+		var link = service.create(URL, null);
 
 		service.delete("abc1234");
 
 		assertThat(repository.findByCode("abc1234")).isEmpty();
+		assertThat(publishedEvents).containsExactly(new ShortLinkDeletedEvent(link.getId(), "abc1234"));
 	}
 
 	@Test
@@ -112,7 +116,7 @@ class ShortLinkServiceTest {
 		Iterator<String> iterator = List.of(codes).iterator();
 		String last = codes[codes.length - 1];
 		CodeGenerator generator = () -> iterator.hasNext() ? iterator.next() : last;
-		return new ShortLinkService(repository, generator, Clock.fixed(NOW, ZoneOffset.UTC));
+		return new ShortLinkService(repository, generator, Clock.fixed(NOW, ZoneOffset.UTC), publishedEvents::add);
 	}
 
 }

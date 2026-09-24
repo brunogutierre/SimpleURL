@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 
+import io.github.brunogutierre.simpleurl.link.ShortLinkDeletedEvent;
 import org.junit.jupiter.api.Test;
 
 import static io.github.brunogutierre.simpleurl.link.ShortLinkFixtures.persistedLink;
@@ -29,6 +30,15 @@ class ClickServiceTest {
 			assertThat(click.getReferer()).isEqualTo("https://referrer.example");
 			assertThat(click.getUserAgent()).isEqualTo("Mozilla/5.0");
 		});
+	}
+
+	@Test
+	void deletesClicksWhenLinkIsDeleted() {
+		service.record(persistedLink(1, "link001"), null, null);
+
+		service.onLinkDeleted(new ShortLinkDeletedEvent(1, "link001"));
+
+		assertThat(repository.findByShortLinkId(1)).isEmpty();
 	}
 
 }
