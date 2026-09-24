@@ -36,10 +36,10 @@ A simple URL shortener REST API built with Java 25 and Spring Boot 4.
 
 | Method | Path | Description | Responses |
 |---|---|---|---|
-| `POST` | `/api/links` | Shorten a URL. Body: `{"url": "https://..."}` | `201` + `Location`, `400` |
+| `POST` | `/api/links` | Shorten a URL. Body: `{"url": "https://...", "expiresAt": "2030-01-01T00:00:00Z"}` (`expiresAt` optional) | `201` + `Location`, `400` |
 | `GET` | `/api/links/{code}` | Get a short link | `200`, `404` |
 | `DELETE` | `/api/links/{code}` | Delete a short link | `204`, `404` |
-| `GET` | `/{code}` | Redirect to the target URL | `302`, `404` |
+| `GET` | `/{code}` | Redirect to the target URL | `302`, `404`, `410` (expired) |
 
 Errors use `application/problem+json`; validation errors list the invalid fields:
 
@@ -55,7 +55,7 @@ Example:
 curl -X POST localhost:8080/api/links -H 'Content-Type: application/json' \
      -d '{"url":"https://example.com/docs"}'
 # {"code":"9YC4ai6","shortUrl":"http://localhost:8080/9YC4ai6",
-#  "targetUrl":"https://example.com/docs","createdAt":"2026-09-24T15:38:04Z"}
+#  "targetUrl":"https://example.com/docs","createdAt":"2026-09-24T15:38:04Z","expiresAt":null}
 
 curl -i localhost:8080/9YC4ai6
 # HTTP/1.1 302
@@ -98,6 +98,9 @@ io.github.brunogutierre.simpleurl
 | `302 Found` for redirects | Browsers cache `301` permanently, which would hide later visits and ignore deleted links. |
 | Redirect route matches only 7-char Base62 codes | `/{code}` never shadows other routes such as `/swagger-ui.html` or `/favicon.ico`. |
 | `shortUrl` built from `simpleurl.base-url` | Deriving it from the request is unreliable behind proxies and load balancers. |
+| `410 Gone` for expired links | Says the link existed but is no longer available, which is more accurate than `404`. Expired links stay readable via the API. |
+| Expiration checked against the injected `Clock` in the service | Bean Validation's `@Future` uses the system clock; checking in the service keeps one time source. A link is expired from `expiresAt` onwards. |
+| Schema evolves through new migrations (`V2` adds `expires_at`) | Released migrations are never edited, as with a real database. |
 | Same URL shortened twice gets two codes | Simpler than deduplication and keeps each link's statistics independent. |
 
 ## Running locally
@@ -120,7 +123,7 @@ Requirements: JDK 25.
 - [x] CI, coverage gate and API documentation
 - [x] Link domain (entity, in-memory repository, code generator, service)
 - [x] Links REST API and redirect endpoint
-- [ ] Link expiration
+- [x] Link expiration
 - [ ] Click statistics
 - [ ] Complete documentation
 
