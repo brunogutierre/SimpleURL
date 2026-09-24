@@ -45,7 +45,26 @@ io.github.brunogutierre.simpleurl
 └── redirect/  public redirect endpoint
 ```
 
-Design decisions and their rationale are documented as each feature lands.
+### Persistence
+
+- JPA entities (`ShortLink`) map the target tables; the schema is documented in
+  [`db/migration`](src/main/resources/db/migration) as Flyway scripts (not executed).
+- Only the Jakarta Persistence **API** is on the classpath (no JPA provider, no JDBC driver),
+  so no `DataSource` is created and the annotations act as mapping metadata.
+- Services depend on repository interfaces (`ShortLinkRepository`); the current implementations
+  are thread-safe in-memory stores.
+
+## Design decisions
+
+| Decision | Rationale |
+|---|---|
+| Random 7-character Base62 codes (`SecureRandom`) | ~3.5 trillion combinations; codes are not guessable or enumerable, unlike sequential IDs. |
+| Retry up to 5 times on code collision | Collisions are extremely rare; a bounded retry keeps creation simple and fails loudly if the code space is ever exhausted. |
+| Uniqueness enforced by the repository (`saveIfCodeAbsent`) | Atomic `ConcurrentHashMap.putIfAbsent` mirrors the table's unique constraint and has no check-then-act race. |
+| `CodeGenerator` interface | Tests use deterministic codes to cover collision handling. |
+| Injected `Clock` | All timestamps come from one source, so time-based behavior is testable without sleeps. |
+| Errors as `ErrorResponseException` subclasses | Spring renders them as RFC 9457 Problem Details with no extra handler code. |
+| Same URL shortened twice gets two codes | Simpler than deduplication and keeps each link's statistics independent. |
 
 ## Running locally
 
@@ -65,7 +84,7 @@ Requirements: JDK 25.
 
 - [x] Project bootstrap
 - [x] CI, coverage gate and API documentation
-- [ ] Link domain (entity, in-memory repository, code generator, service)
+- [x] Link domain (entity, in-memory repository, code generator, service)
 - [ ] Links REST API and redirect endpoint
 - [ ] Link expiration
 - [ ] Click statistics
