@@ -1,5 +1,11 @@
 # SimpleURL
 
+[![CI](https://github.com/brunogutierre/SimpleURL/actions/workflows/ci.yml/badge.svg)](https://github.com/brunogutierre/SimpleURL/actions/workflows/ci.yml)
+![Coverage gate](https://img.shields.io/badge/coverage%20gate-80%25-brightgreen)
+![Java](https://img.shields.io/badge/Java-25-orange)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1-6db33f)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A simple URL shortener REST API built with Java 25 and Spring Boot 4: short links, `302` redirects,
 optional expiration and click statistics.
 
