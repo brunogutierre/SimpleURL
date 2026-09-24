@@ -38,7 +38,8 @@ A simple URL shortener REST API built with Java 25 and Spring Boot 4.
 |---|---|---|---|
 | `POST` | `/api/links` | Shorten a URL. Body: `{"url": "https://...", "expiresAt": "2030-01-01T00:00:00Z"}` (`expiresAt` optional) | `201` + `Location`, `400` |
 | `GET` | `/api/links/{code}` | Get a short link | `200`, `404` |
-| `DELETE` | `/api/links/{code}` | Delete a short link | `204`, `404` |
+| `DELETE` | `/api/links/{code}` | Delete a short link and its clicks | `204`, `404` |
+| `GET` | `/api/links/{code}/stats` | Click statistics: total, last click, clicks per UTC day | `200`, `404` |
 | `GET` | `/{code}` | Redirect to the target URL | `302`, `404`, `410` (expired) |
 
 Errors use `application/problem+json`; validation errors list the invalid fields:
@@ -60,6 +61,10 @@ curl -X POST localhost:8080/api/links -H 'Content-Type: application/json' \
 curl -i localhost:8080/9YC4ai6
 # HTTP/1.1 302
 # Location: https://example.com/docs
+
+curl localhost:8080/api/links/9YC4ai6/stats
+# {"code":"9YC4ai6","totalClicks":1,"lastClickAt":"2026-09-24T15:40:12Z",
+#  "clicksPerDay":[{"date":"2026-09-24","clicks":1}]}
 ```
 
 ## Architecture
@@ -77,11 +82,11 @@ io.github.brunogutierre.simpleurl
 
 ### Persistence
 
-- JPA entities (`ShortLink`) map the target tables; the schema is documented in
+- JPA entities (`ShortLink`, `Click`) map the target tables; the schema is documented in
   [`db/migration`](src/main/resources/db/migration) as Flyway scripts (not executed).
 - Only the Jakarta Persistence **API** is on the classpath (no JPA provider, no JDBC driver),
   so no `DataSource` is created and the annotations act as mapping metadata.
-- Services depend on repository interfaces (`ShortLinkRepository`); the current implementations
+- Services depend on repository interfaces (`ShortLinkRepository`, `ClickRepository`); the current implementations
   are thread-safe in-memory stores.
 
 ## Design decisions
@@ -101,6 +106,10 @@ io.github.brunogutierre.simpleurl
 | `410 Gone` for expired links | Says the link existed but is no longer available, which is more accurate than `404`. Expired links stay readable via the API. |
 | Expiration checked against the injected `Clock` in the service | Bean Validation's `@Future` uses the system clock; checking in the service keeps one time source. A link is expired from `expiresAt` onwards. |
 | Schema evolves through new migrations (`V2` adds `expires_at`) | Released migrations are never edited, as with a real database. |
+| Clicks recorded synchronously, only after a successful redirect | In-memory writes are cheap; unknown and expired links record nothing. With a real database, recording could move to an async queue. |
+| Referer and User-Agent truncated to column sizes | They are client-controlled headers; truncation avoids rejecting a visit because of an oversized header. |
+| Link deletion publishes `ShortLinkDeletedEvent`; clicks listen to it | Mirrors the `ON DELETE CASCADE` foreign key while keeping the dependency one-way (`click → link`). |
+| Statistics aggregated per UTC day in the service | Simple and time-zone neutral. With a real database this becomes a `GROUP BY` query served by the `(short_link_id, clicked_at)` index. |
 | Same URL shortened twice gets two codes | Simpler than deduplication and keeps each link's statistics independent. |
 
 ## Running locally
@@ -124,7 +133,7 @@ Requirements: JDK 25.
 - [x] Link domain (entity, in-memory repository, code generator, service)
 - [x] Links REST API and redirect endpoint
 - [x] Link expiration
-- [ ] Click statistics
+- [x] Click statistics
 - [ ] Complete documentation
 
 ## License
