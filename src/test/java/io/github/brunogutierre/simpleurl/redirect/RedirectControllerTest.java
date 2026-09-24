@@ -2,6 +2,7 @@ package io.github.brunogutierre.simpleurl.redirect;
 
 import java.time.Instant;
 
+import io.github.brunogutierre.simpleurl.click.ClickService;
 import io.github.brunogutierre.simpleurl.link.LinkExpiredException;
 import io.github.brunogutierre.simpleurl.link.LinkNotFoundException;
 import io.github.brunogutierre.simpleurl.link.ShortLink;
@@ -28,13 +29,18 @@ class RedirectControllerTest {
 	@MockitoBean
 	ShortLinkService linkService;
 
-	@Test
-	void redirectsToTargetUrl() {
-		given(linkService.resolve("abc1234"))
-			.willReturn(ShortLink.create("abc1234", "https://example.com/long?q=1", Instant.EPOCH));
+	@MockitoBean
+	ClickService clickService;
 
-		assertThat(mvc.get().uri("/abc1234")).hasStatus(HttpStatus.FOUND)
+	@Test
+	void redirectsToTargetUrlAndRecordsClick() {
+		var link = ShortLink.create("abc1234", "https://example.com/long?q=1", Instant.EPOCH);
+		given(linkService.resolve("abc1234")).willReturn(link);
+
+		assertThat(mvc.get().uri("/abc1234").header("Referer", "https://ref.example").header("User-Agent", "curl/8"))
+			.hasStatus(HttpStatus.FOUND)
 			.hasRedirectedUrl("https://example.com/long?q=1");
+		then(clickService).should().record(link, "https://ref.example", "curl/8");
 	}
 
 	@Test
@@ -42,6 +48,7 @@ class RedirectControllerTest {
 		given(linkService.resolve("zzzzzzz")).willThrow(new LinkNotFoundException("zzzzzzz"));
 
 		assertThat(mvc.get().uri("/zzzzzzz")).hasStatus(HttpStatus.NOT_FOUND);
+		then(clickService).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -52,6 +59,7 @@ class RedirectControllerTest {
 			.bodyJson()
 			.extractingPath("$.title")
 			.isEqualTo("Link expired");
+		then(clickService).shouldHaveNoInteractions();
 	}
 
 	@ParameterizedTest

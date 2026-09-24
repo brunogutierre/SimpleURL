@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 
 import org.jspecify.annotations.Nullable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 /**
@@ -20,10 +21,14 @@ public class ShortLinkService {
 
 	private final Clock clock;
 
-	public ShortLinkService(ShortLinkRepository repository, CodeGenerator codeGenerator, Clock clock) {
+	private final ApplicationEventPublisher events;
+
+	public ShortLinkService(ShortLinkRepository repository, CodeGenerator codeGenerator, Clock clock,
+			ApplicationEventPublisher events) {
 		this.repository = repository;
 		this.codeGenerator = codeGenerator;
 		this.clock = clock;
+		this.events = events;
 	}
 
 	/**
@@ -67,10 +72,13 @@ public class ShortLinkService {
 	}
 
 	/**
+	 * Deletes the link and publishes a {@link ShortLinkDeletedEvent}.
 	 * @throws LinkNotFoundException if no link has the given code
 	 */
 	public void delete(String code) {
-		repository.delete(get(code));
+		var link = get(code);
+		repository.delete(link);
+		events.publishEvent(new ShortLinkDeletedEvent(link.getId(), link.getCode()));
 	}
 
 }
