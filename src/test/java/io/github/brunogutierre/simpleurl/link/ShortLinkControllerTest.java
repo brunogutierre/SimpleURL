@@ -37,14 +37,38 @@ class ShortLinkControllerTest {
 
 	@Test
 	void createsLink() {
-		given(service.create(URL)).willReturn(LINK);
+		given(service.create(URL, null)).willReturn(LINK);
 
 		assertThat(post("{\"url\":\"" + URL + "\"}")).hasStatus(HttpStatus.CREATED)
 			.hasHeader("Location", "http://localhost/api/links/abc1234")
 			.bodyJson()
 			.isEqualTo("""
 					{"code":"abc1234","shortUrl":"https://sho.rt/abc1234","targetUrl":"%s",
-					 "createdAt":"2026-01-01T10:00:00Z"}""".formatted(URL));
+					 "createdAt":"2026-01-01T10:00:00Z","expiresAt":null}""".formatted(URL));
+	}
+
+	@Test
+	void passesExpirationToService() {
+		var expiresAt = Instant.parse("2030-01-01T00:00:00Z");
+		given(service.create(URL, expiresAt))
+			.willReturn(ShortLink.create("abc1234", URL, Instant.parse("2026-01-01T10:00:00Z"), expiresAt));
+
+		assertThat(post("{\"url\":\"%s\",\"expiresAt\":\"2030-01-01T00:00:00Z\"}".formatted(URL)))
+			.hasStatus(HttpStatus.CREATED)
+			.bodyJson()
+			.extractingPath("$.expiresAt")
+			.isEqualTo("2030-01-01T00:00:00Z");
+	}
+
+	@Test
+	void rejectsExpirationInThePast() {
+		given(service.create(URL, Instant.EPOCH)).willThrow(new InvalidExpirationException());
+
+		assertThat(post("{\"url\":\"%s\",\"expiresAt\":\"1970-01-01T00:00:00Z\"}".formatted(URL)))
+			.hasStatus(HttpStatus.BAD_REQUEST)
+			.bodyJson()
+			.extractingPath("$.errors.expiresAt")
+			.isEqualTo("must be in the future");
 	}
 
 	@ParameterizedTest

@@ -38,7 +38,7 @@ class ShortLinkController {
 	@Operation(summary = "Shorten a URL")
 	@PostMapping
 	ResponseEntity<LinkResponse> create(@Valid @RequestBody CreateLinkRequest request) {
-		var link = service.create(request.url());
+		var link = service.create(request.url(), request.expiresAt());
 		var location = ServletUriComponentsBuilder.fromCurrentRequest()
 			.path("/{code}")
 			.buildAndExpand(link.getCode())
