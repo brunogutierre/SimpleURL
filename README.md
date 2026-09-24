@@ -32,6 +32,36 @@ A simple URL shortener REST API built with Java 25 and Spring Boot 4.
 | Tests | JUnit 5, AssertJ, Spring Boot Test, JaCoCo (≥ 80% coverage gate) |
 | CI | GitHub Actions |
 
+## API
+
+| Method | Path | Description | Responses |
+|---|---|---|---|
+| `POST` | `/api/links` | Shorten a URL. Body: `{"url": "https://..."}` | `201` + `Location`, `400` |
+| `GET` | `/api/links/{code}` | Get a short link | `200`, `404` |
+| `DELETE` | `/api/links/{code}` | Delete a short link | `204`, `404` |
+| `GET` | `/{code}` | Redirect to the target URL | `302`, `404` |
+
+Errors use `application/problem+json`; validation errors list the invalid fields:
+
+```sh
+curl -X POST localhost:8080/api/links -H 'Content-Type: application/json' -d '{"url":"ftp://x"}'
+# {"title":"Bad Request","status":400,"detail":"Request validation failed",
+#  "errors":{"url":"must be a valid http or https URL"},"instance":"/api/links"}
+```
+
+Example:
+
+```sh
+curl -X POST localhost:8080/api/links -H 'Content-Type: application/json' \
+     -d '{"url":"https://example.com/docs"}'
+# {"code":"9YC4ai6","shortUrl":"http://localhost:8080/9YC4ai6",
+#  "targetUrl":"https://example.com/docs","createdAt":"2026-09-24T15:38:04Z"}
+
+curl -i localhost:8080/9YC4ai6
+# HTTP/1.1 302
+# Location: https://example.com/docs
+```
+
 ## Architecture
 
 Package-by-feature, with a one-way dependency flow `redirect → click → link`:
@@ -64,6 +94,10 @@ io.github.brunogutierre.simpleurl
 | `CodeGenerator` interface | Tests use deterministic codes to cover collision handling. |
 | Injected `Clock` | All timestamps come from one source, so time-based behavior is testable without sleeps. |
 | Errors as `ErrorResponseException` subclasses | Spring renders them as RFC 9457 Problem Details with no extra handler code. |
+| Only absolute `http`/`https` URLs with a host (max 2048 chars) | Blocks `javascript:`, `ftp:` and relative targets; the length matches the `target_url` column. |
+| `302 Found` for redirects | Browsers cache `301` permanently, which would hide later visits and ignore deleted links. |
+| Redirect route matches only 7-char Base62 codes | `/{code}` never shadows other routes such as `/swagger-ui.html` or `/favicon.ico`. |
+| `shortUrl` built from `simpleurl.base-url` | Deriving it from the request is unreliable behind proxies and load balancers. |
 | Same URL shortened twice gets two codes | Simpler than deduplication and keeps each link's statistics independent. |
 
 ## Running locally
@@ -85,7 +119,7 @@ Requirements: JDK 25.
 - [x] Project bootstrap
 - [x] CI, coverage gate and API documentation
 - [x] Link domain (entity, in-memory repository, code generator, service)
-- [ ] Links REST API and redirect endpoint
+- [x] Links REST API and redirect endpoint
 - [ ] Link expiration
 - [ ] Click statistics
 - [ ] Complete documentation
