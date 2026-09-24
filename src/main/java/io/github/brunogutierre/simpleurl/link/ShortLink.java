@@ -9,9 +9,11 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.jspecify.annotations.Nullable;
 
 /**
- * A short code that points to a target URL. Maps the {@code short_link} table.
+ * A short code that points to a target URL, optionally until an expiration time.
+ * Maps the {@code short_link} table.
  */
 @Entity
 @Table(name = "short_link")
@@ -34,18 +36,27 @@ public class ShortLink {
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt;
 
+	@Column(name = "expires_at")
+	private @Nullable Instant expiresAt;
+
 	/** Required by JPA. */
 	protected ShortLink() {
 	}
 
-	private ShortLink(String code, String targetUrl, Instant createdAt) {
+	private ShortLink(String code, String targetUrl, Instant createdAt, @Nullable Instant expiresAt) {
 		this.code = Objects.requireNonNull(code, "code");
 		this.targetUrl = Objects.requireNonNull(targetUrl, "targetUrl");
 		this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
+		this.expiresAt = expiresAt;
 	}
 
+	/** Creates a link that never expires. */
 	public static ShortLink create(String code, String targetUrl, Instant createdAt) {
-		return new ShortLink(code, targetUrl, createdAt);
+		return create(code, targetUrl, createdAt, null);
+	}
+
+	public static ShortLink create(String code, String targetUrl, Instant createdAt, @Nullable Instant expiresAt) {
+		return new ShortLink(code, targetUrl, createdAt, expiresAt);
 	}
 
 	public Long getId() {
@@ -67,6 +78,15 @@ public class ShortLink {
 
 	public Instant getCreatedAt() {
 		return createdAt;
+	}
+
+	public @Nullable Instant getExpiresAt() {
+		return expiresAt;
+	}
+
+	/** A link is expired from its expiration instant onwards. */
+	public boolean isExpiredAt(Instant now) {
+		return expiresAt != null && !now.isBefore(expiresAt);
 	}
 
 }

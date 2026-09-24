@@ -2,6 +2,7 @@ package io.github.brunogutierre.simpleurl.redirect;
 
 import java.time.Instant;
 
+import io.github.brunogutierre.simpleurl.link.LinkExpiredException;
 import io.github.brunogutierre.simpleurl.link.LinkNotFoundException;
 import io.github.brunogutierre.simpleurl.link.ShortLink;
 import io.github.brunogutierre.simpleurl.link.ShortLinkService;
@@ -29,7 +30,7 @@ class RedirectControllerTest {
 
 	@Test
 	void redirectsToTargetUrl() {
-		given(linkService.get("abc1234"))
+		given(linkService.resolve("abc1234"))
 			.willReturn(ShortLink.create("abc1234", "https://example.com/long?q=1", Instant.EPOCH));
 
 		assertThat(mvc.get().uri("/abc1234")).hasStatus(HttpStatus.FOUND)
@@ -38,9 +39,19 @@ class RedirectControllerTest {
 
 	@Test
 	void returnsNotFoundForUnknownCode() {
-		given(linkService.get("zzzzzzz")).willThrow(new LinkNotFoundException("zzzzzzz"));
+		given(linkService.resolve("zzzzzzz")).willThrow(new LinkNotFoundException("zzzzzzz"));
 
 		assertThat(mvc.get().uri("/zzzzzzz")).hasStatus(HttpStatus.NOT_FOUND);
+	}
+
+	@Test
+	void returnsGoneForExpiredLink() {
+		given(linkService.resolve("abc1234")).willThrow(new LinkExpiredException("abc1234"));
+
+		assertThat(mvc.get().uri("/abc1234")).hasStatus(HttpStatus.GONE)
+			.bodyJson()
+			.extractingPath("$.title")
+			.isEqualTo("Link expired");
 	}
 
 	@ParameterizedTest

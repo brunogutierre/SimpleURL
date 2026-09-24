@@ -1,7 +1,9 @@
 package io.github.brunogutierre.simpleurl.link;
 
 import java.time.Clock;
+import java.time.Instant;
 
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
 /**
@@ -26,12 +28,17 @@ public class ShortLinkService {
 
 	/**
 	 * Creates a link with a new unique code, retrying when a generated code is taken.
+	 * @param expiresAt when the link stops working, or {@code null} to never expire
+	 * @throws InvalidExpirationException if {@code expiresAt} is not in the future
 	 * @throws CodeGenerationFailedException if no unique code is found
 	 */
-	public ShortLink create(String targetUrl) {
+	public ShortLink create(String targetUrl, @Nullable Instant expiresAt) {
 		var now = clock.instant();
+		if (expiresAt != null && !expiresAt.isAfter(now)) {
+			throw new InvalidExpirationException();
+		}
 		for (int attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
-			var link = ShortLink.create(codeGenerator.generate(), targetUrl, now);
+			var link = ShortLink.create(codeGenerator.generate(), targetUrl, now, expiresAt);
 			if (repository.saveIfCodeAbsent(link)) {
 				return link;
 			}
@@ -44,6 +51,19 @@ public class ShortLinkService {
 	 */
 	public ShortLink get(String code) {
 		return repository.findByCode(code).orElseThrow(() -> new LinkNotFoundException(code));
+	}
+
+	/**
+	 * Finds the link a visitor should be redirected to.
+	 * @throws LinkNotFoundException if no link has the given code
+	 * @throws LinkExpiredException if the link has expired
+	 */
+	public ShortLink resolve(String code) {
+		var link = get(code);
+		if (link.isExpiredAt(clock.instant())) {
+			throw new LinkExpiredException(code);
+		}
+		return link;
 	}
 
 	/**

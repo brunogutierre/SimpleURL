@@ -33,7 +33,7 @@ class RedirectController {
 	@Operation(summary = "Redirect to the target URL of a short link")
 	@GetMapping("/{code:[0-9A-Za-z]{7}}")
 	ResponseEntity<Void> redirect(@PathVariable String code) {
-		var link = linkService.get(code);
+		var link = linkService.resolve(code);
 		return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(link.getTargetUrl())).build();
 	}
 

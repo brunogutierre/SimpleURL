@@ -7,6 +7,8 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatus;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,35 +26,72 @@ class ShortLinkServiceTest {
 	void createsLinkWithGeneratedCodeAndCurrentTime() {
 		var service = serviceGenerating("abc1234");
 
-		var link = service.create(URL);
+		var link = service.create(URL, null);
 
 		assertThat(link.getCode()).isEqualTo("abc1234");
 		assertThat(link.getTargetUrl()).isEqualTo(URL);
 		assertThat(link.getCreatedAt()).isEqualTo(NOW);
+		assertThat(link.getExpiresAt()).isNull();
 		assertThat(service.get("abc1234")).isSameAs(link);
+	}
+
+	@Test
+	void createsLinkWithFutureExpiration() {
+		var expiresAt = NOW.plusSeconds(1);
+
+		assertThat(serviceGenerating("abc1234").create(URL, expiresAt).getExpiresAt()).isEqualTo(expiresAt);
+	}
+
+	@ParameterizedTest
+	@ValueSource(longs = { 0, -1 })
+	void rejectsExpirationThatIsNotInTheFuture(long secondsFromNow) {
+		var service = serviceGenerating("abc1234");
+
+		assertThatThrownBy(() -> service.create(URL, NOW.plusSeconds(secondsFromNow)))
+			.isInstanceOf(InvalidExpirationException.class);
+		assertThat(repository.findByCode("abc1234")).isEmpty();
 	}
 
 	@Test
 	void retriesWhenGeneratedCodeIsTaken() {
 		var service = serviceGenerating("taken01", "taken01", "free001");
-		service.create(URL);
+		service.create(URL, null);
 
-		assertThat(service.create(URL).getCode()).isEqualTo("free001");
+		assertThat(service.create(URL, null).getCode()).isEqualTo("free001");
 	}
 
 	@Test
 	void failsAfterMaxAttemptsWhenEveryCodeIsTaken() {
 		var service = serviceGenerating("taken01");
-		service.create(URL);
+		service.create(URL, null);
 
-		assertThatThrownBy(() -> service.create(URL)).isInstanceOf(CodeGenerationFailedException.class)
+		assertThatThrownBy(() -> service.create(URL, null)).isInstanceOf(CodeGenerationFailedException.class)
 			.hasMessageContaining("after 5 attempts");
+	}
+
+	@Test
+	void resolvesActiveLinks() {
+		var service = serviceGenerating("unused1");
+		repository.saveIfCodeAbsent(ShortLink.create("forever", URL, NOW));
+		repository.saveIfCodeAbsent(ShortLink.create("later01", URL, NOW, NOW.plusSeconds(1)));
+
+		assertThat(service.resolve("forever").getCode()).isEqualTo("forever");
+		assertThat(service.resolve("later01").getCode()).isEqualTo("later01");
+	}
+
+	@Test
+	void refusesToResolveExpiredLink() {
+		var service = serviceGenerating("unused1");
+		repository.saveIfCodeAbsent(ShortLink.create("expired", URL, NOW.minusSeconds(60), NOW));
+
+		assertThatThrownBy(() -> service.resolve("expired")).isInstanceOf(LinkExpiredException.class);
+		assertThat(service.get("expired").getCode()).isEqualTo("expired");
 	}
 
 	@Test
 	void deletesLink() {
 		var service = serviceGenerating("abc1234");
-		service.create(URL);
+		service.create(URL, null);
 
 		service.delete("abc1234");
 
