@@ -1,3 +1,7 @@
 spring:
   application:
     name: SimpleURL
+
+simpleurl:
+  # Public address used to build short URLs (override in each environment).
+  base-url: ${SIMPLEURL_BASE_URL:http://localhost:8080}
